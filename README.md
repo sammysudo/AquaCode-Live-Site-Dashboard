@@ -63,7 +63,9 @@ Because FastAPI serves both the backend API and the frontend HTML, you can deplo
    *   **Environment:** `Python 3`
    *   **Build Command:** `pip install fastapi uvicorn[standard] joblib scikit-learn numpy pandas`
    *   **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-5. Click **Deploy**. 
+   *   **Root Directory:** `SafiSense_server` This is for mapping the directory for the main.py file
+5. Click **Deploy**.
+<img width="410" height="410" alt="QrFlow_23803" src="https://github.com/user-attachments/assets/a4c5d9b5-042e-4037-bb66-ceac62f44e8a" />
 
 ## 🧠 The Lesson (Rule vs. ML)
 
