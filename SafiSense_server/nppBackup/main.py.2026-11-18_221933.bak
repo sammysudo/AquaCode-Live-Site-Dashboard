@@ -1,0 +1,66 @@
+import joblib
+import numpy as np
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+
+# Trained model: Pipeline(StandardScaler -> SVC)
+# Feature order at training time: ["ph", "tds", "temp"]
+MODEL = joblib.load("svm_water_model.joblib")
+FEATURES = ["ph", "tds", "temp"]
+
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+)
+
+# 1. Mount the static folder so index.html can load style.css and script.js
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+class Reading(BaseModel):
+    device_id: str = "esp32-01"
+    ts: int | None = None
+    ph: float
+    tds_in: float
+    tds_out: float
+    temp_c: float
+    turbidity: float | None = None
+
+LATEST = {"reading": None, "prediction": None}
+
+def predict_safe(r: Reading) -> dict:
+    # Model was trained on ["ph", "tds", "temp"] in that order[cite: 3].
+    # "tds" at training time == product water == r.tds_out here[cite: 3].
+    x = np.array([[r.ph, r.tds_out, r.temp_c]])
+    pred = int(MODEL.predict(x)[0])
+    proba = float(MODEL.predict_proba(x)[0][1]) if hasattr(MODEL, "predict_proba") else None
+    return {"safe": pred, "probability_safe": proba}
+
+# 2. Serve the frontend dashboard homepage at the root URL
+@app.get("/")
+def serve_dashboard():
+    return FileResponse("static/index.html")
+
+@app.post("/api/readings")
+def ingest(r: Reading):
+    pred = predict_safe(r)
+    LATEST["reading"] = r.model_dump()
+    LATEST["prediction"] = pred
+    return {"received": True, "prediction": pred}
+
+@app.get("/api/latest")
+def latest():
+    if LATEST["reading"] is None:
+        raise HTTPException(status_code=404, detail="no readings yet")
+    return {**LATEST["reading"], **LATEST["prediction"]}
+
+@app.post("/api/predict")
+def predict(r: Reading):
+    return predict_safe(r)
+
+@app.get("/health")
+def health():
+    return {"ok": True, "features": FEATURES}

@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SafiSense — Water Quality Dashboard</title>
+<style>
+  :root { font-family: Inter, system-ui, sans-serif; color: #0f172a; background: #f1f5f9; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; }
+  .wrap { max-width: 1020px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  h1 { font-size: 22px; margin: 0; }
+  h1 span { color: #0284c7; }
+  .pill { padding: 10px 22px; border-radius: 999px; font-weight: 800; font-size: 18px; letter-spacing: .02em; color: #fff; background: #94a3b8; transition: background .2s; }
+  .pill.safe { background: #16a34a; }
+  .pill.unsafe { background: #dc2626; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  label { font-size: 13px; color: #475569; }
+  input, select, button { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; }
+  button { cursor: pointer; font-weight: 600; }
+  button.primary { background: #0284c7; border-color: #0284c7; color: #fff; }
+  button.ghost { background: #f8fafc; }
+  button.danger { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+  button:disabled { opacity: .5; cursor: default; }
+  #conn { font-size: 13px; color: #64748b; }
+  #conn.err { color: #b91c1c; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .tile { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; }
+  .tile .k { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+  .tile .v { font-size: 26px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .tile .v.bad { color: #dc2626; }
+  .tile .u { font-size: 12px; color: #94a3b8; }
+  canvas#chart { width: 100%; height: 300px; display: block; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: #475569; margin-bottom: 6px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+  details summary { cursor: pointer; font-weight: 600; color: #334155; }
+  .muted { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+  .chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: #475569; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span>SafiSense</span> — Water Quality Dashboard</h1>
+    <div id="statusPill" class="pill" aria-live="polite">—</div>
+  </header>
+
+  <div class="card">
+    <div class="row">
+      <label>Data source
+        <select id="mode">
+          <option value="sim">Simulated (demo mode)</option>
+          <option value="esp32">ESP32 (live)</option>
+        </select>
+      </label>
+      <input id="espUrl" size="22" placeholder="http://192.168.4.1" />
+      <button id="startBtn" class="primary">Start</button>
+      <button id="stopBtn" class="ghost" disabled>Stop</button>
+      <button id="csvBtn" class="ghost">Export CSV</button>
+      <button id="clearBtn" class="ghost">Clear</button>
+      <label class="chk"><input type="checkbox" id="sound" checked /> Alert sound</label>
+    </div>
+    <div class="row" id="scenarios" style="margin-top:10px">
+      <span class="muted" style="margin:0">Demo scenarios:</span>
+      <button id="spikeBtn" class="danger">Contamination spike</button>
+      <button id="phFaultBtn" class="danger">pH fault</button>
+    </div>
+    <div id="conn" class="muted">Idle. Pick a source and press Start — a reading is taken every 2 s.</div>
+    <div class="muted">Tip: open this file directly (file://) or via http://localhost. An HTTPS-hosted copy cannot call the ESP32's HTTP endpoint (mixed content).</div>
+  </div>
+
+  <div class="tiles">
+    <div class="tile"><div class="k">pH</div><div class="v" id="tPh">—</div><div class="u">safe 6.5 – 8.5</div></div>
+    <div class="tile"><div class="k">TDS in</div><div class="v" id="tTdsIn">—</div><div class="u">ppm · source water</div></div>
+    <div class="tile"><div class="k">TDS out</div><div class="v" id="tTdsOut">—</div><div class="u">ppm · limit 500</div></div>
+    <div class="tile"><div class="k">Temp</div><div class="v" id="tTemp">—</div><div class="u">°C</div></div>
+    <div class="tile"><div class="k">Turbidity</div><div class="v" id="tTurb">—</div><div class="u">NTU</div></div>
+    <div class="tile"><div class="k">Removal</div><div class="v" id="tRem">—</div><div class="u">% TDS removed</div></div>
+  </div>
+
+  <div class="card">
+    <div class="legend">
+      <span><span class="dot" style="background:#0284c7"></span>TDS in</span>
+      <span><span class="dot" style="background:#0d9488"></span>TDS out</span>
+      <span><span class="dot" style="background:#dc2626"></span>500 ppm limit</span>
+      <span><span class="dot" style="background:#fff;border:2px solid #dc2626"></span>unsafe reading</span>
+    </div>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <details class="card">
+    <summary>Telegram alerts (optional)</summary>
+    <div class="row" style="margin-top:10px">
+      <input id="tgToken" size="30" placeholder="Bot token" />
+      <input id="tgChat" size="14" placeholder="Chat ID" />
+      <button id="tgTest" class="ghost">Send test</button>
+    </div>
+    <div class="muted">Needs internet. Sends one message when status turns UNSAFE (30 s cooldown). The token stays in this browser. Note: if you're joined to the ESP32's own Wi-Fi there is no internet, so alerts only work in demo mode or when the ESP32 is on a network with internet.</div>
+  </details>
+
+  <div class="muted">Status rule: SAFE when pH is 6.5–8.5 AND TDS out ≤ 500 ppm. Removal % = (TDS_in − TDS_out) / TDS_in × 100.</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const LIMIT_TDS = 500, PH_MIN = 6.5, PH_MAX = 8.5, MAX_POINTS = 150;
+const POLL_MS = 2000, FETCH_TIMEOUT_MS = 1500, ALERT_COOLDOWN_MS = 30000;
+
+let history = [], timer = null, inFlight = false, lastSafe = null;
+let lastAlertAt = 0, audioCtx = null;
+
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const isSafe = r => r.ph >= PH_MIN && r.ph <= PH_MAX && r.tds_out <= LIMIT_TDS;
+const removal = r => r.tds_in > 0 ? (r.tds_in - r.tds_out) / r.tds_in * 100 : 0;
+
+const store = {
+  get(k, d = '') { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+};
+
+const sim = { tdsIn: 650, tdsOut: 45, ph: 7.2, temp: 25.5, turb: 1.1, tdsEvent: 0, phEvent: 0, phSide: 7 };
+
+function simReading() {
+  sim.tdsIn = clamp(sim.tdsIn + (Math.random() - 0.5) * 50, 350, 950);
+  let spike = false;
+  if (sim.tdsEvent > 0) { sim.tdsEvent--; spike = true; }
+  else if (Math.random() < 0.06) spike = true;
+  sim.tdsOut = spike ? sim.tdsIn * (0.55 + Math.random() * 0.25) : sim.tdsIn * (0.03 + Math.random() * 0.07);
+
+  sim.ph = clamp(sim.ph + (Math.random() - 0.5) * 0.12, 6.8, 8.2);
+  if (sim.phEvent > 0) { sim.phEvent--; sim.ph = clamp(sim.phSide + (Math.random() - 0.5) * 0.1, 4, 10); }
+  else if (Math.random() < 0.05) sim.ph = Math.random() < 0.5 ? 5.6 + Math.random() : 8.8 + Math.random() * 0.7;
+
+  sim.temp = clamp(sim.temp + (Math.random() - 0.5) * 0.3, 23, 28);
+  sim.turb = clamp(sim.turb + (Math.random() - 0.5) * 0.3, 0.1, 5);
+
+  return { ts: Date.now(), ph: +sim.ph.toFixed(2), tds_in: Math.round(sim.tdsIn),
+           tds_out: Math.round(sim.tdsOut), temp_c: +sim.temp.toFixed(1), turbidity: +sim.turb.toFixed(2) };
+}
+
+async function espReading(base) {
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  const url = base.replace(/\/+$/, '').replace(/\/data$/, '') + '/data';
+  try {
+    const res = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
+    const num = v => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+    const tsRaw = Number(d.ts);
+    const ts = Number.isFinite(tsRaw) && tsRaw > 0 ? (tsRaw < 1e12 ? tsRaw * 1000 : tsRaw) : Date.now();
+    const r = { ts, ph: num(d.ph), tds_in: num(d.tds_in), tds_out: num(d.tds_out),
+                temp_c: num(d.temp_c), turbidity: d.turbidity == null ? null : num(d.turbidity) };
+    if (r.ph == null || r.tds_in == null || r.tds_out == null || r.temp_c == null) {
+      throw new Error('malformed JSON (need ph, tds_in, tds_out, temp_c)');
+    }
+    return r;
+  } finally { clearTimeout(to); }
+}
+
+function setConn(text, isErr = false) {
+  const el = $('conn');
+  el.textContent = text;
+  el.classList.toggle('err', isErr);
+}
+
+function tgSend(text) {
+  const token = $('tgToken').value.trim(), chat = $('tgChat').value.trim();
+  if (!token || !chat) return;
+  fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    body: new URLSearchParams({ chat_id: chat, text })
+  }).catch(() => {});
+}
+
+function beep() {
+  try {
+    if (!audioCtx) return;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'square'; o.frequency.value = 880;
+    const t = audioCtx.currentTime;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t); o.stop(t + 0.4);
+  } catch {}
+}
+
+async function tick() {
+  if (inFlight) return;
+  const mode = $('mode').value;
+  let r, msg;
+
+  if (mode === 'sim') {
+    r = simReading();
+    msg = 'Simulated data (demo mode)';
+  } else {
+    const base = $('espUrl').value.trim() || 'http://192.168.4.1';
+    inFlight = true;
+    try {
+      r = await espReading(base);
+      if ($('mode').value !== 'esp32') return;
+      msg = `Live from ${base.replace(/\/+$/, '').replace(/\/data$/, '')}/data`;
+    } catch (e) {
+      const reason = e.name === 'AbortError' ? `no response in ${FETCH_TIMEOUT_MS} ms` : e.message;
+      setConn(`Cannot reach ${base}/data — ${reason}. Check the ESP32 is in SoftAP mode and you are joined to its Wi-Fi.`, true);
+      return;
+    } finally {
+      inFlight = false;
+    }
+  }
+
+  r.removal = removal(r);
+  r.safe = isSafe(r);
+  history.push(r);
+  if (history.length > MAX_POINTS) history.shift();
+  render(r, msg);
+}
+
+function render(r, msg) {
+  setConn(`${msg} · ${history.length} readings · last ${new Date(r.ts).toLocaleTimeString()}`);
+  const pill = $('statusPill');
+  pill.textContent = r.safe ? 'SAFE ✓' : 'UNSAFE ✗';
+  pill.className = 'pill ' + (r.safe ? 'safe' : 'unsafe');
+  document.title = (r.safe ? '✅' : '⚠️') + ' SafiSense — Water Quality';
+
+  const set = (id, val, bad) => { const el = $(id); el.textContent = val; el.classList.toggle('bad', !!bad); };
+  set('tPh', r.ph.toFixed(2), r.ph < PH_MIN || r.ph > PH_MAX);
+  set('tTdsIn', Math.round(r.tds_in), false);
+  set('tTdsOut', Math.round(r.tds_out), r.tds_out > LIMIT_TDS);
+  set('tTemp', r.temp_c.toFixed(1), false);
+  set('tTurb', r.turbidity == null ? '—' : r.turbidity.toFixed(2), r.turbidity != null && r.turbidity > 5);
+  set('tRem', r.removal.toFixed(1) + '%', r.removal < 80);
+
+  const wasSafe = lastSafe;
+  lastSafe = r.safe;
+  if (!r.safe && wasSafe !== false && Date.now() - lastAlertAt > ALERT_COOLDOWN_MS) {
+    lastAlertAt = Date.now();
+    tgSend(`⚠️ SafiSense: water UNSAFE — pH ${r.ph.toFixed(2)}, TDS out ${Math.round(r.tds_out)} ppm, removal ${r.removal.toFixed(1)}%`);
+    if ($('sound').checked) beep();
+  }
+
+  drawChart();
+}
+
+function drawChart() {
+  const c = $('chart');
+  const dpr = window.devicePixelRatio || 1;
+  const W = Math.max(320, c.clientWidth || 900), H = 300;
+  if (c.width !== Math.round(W * dpr) || c.height !== Math.round(H * dpr)) {
+    c.width = Math.round(W * dpr);
+    c.height = Math.round(H * dpr);
+  }
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  ctx.font = '12px Inter, system-ui, sans-serif';
+
+  if (history.length < 2) {
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'left';
+    ctx.fillText('Waiting for readings…', 64, H / 2);
+    return;
+  }
+
+  const L = 58, R = 18, T = 16, B = 38;
+  const vals = history.flatMap(r => [r.tds_in, r.tds_out]);
+  const yMax = Math.max(1000, Math.ceil(Math.max(...vals) * 1.1 / 250) * 250);
+  const x = i => L + i / (history.length - 1) * (W - L - R);
+  const y = v => T + (1 - v / yMax) * (H - T - B);
+
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.fillStyle = '#64748b';
+  ctx.lineWidth = 1;
+  for (let s = 0; s <= 4; s++) {
+    const v = yMax / 4 * s, yy = y(v);
+    ctx.beginPath(); ctx.moveTo(L, yy); ctx.lineTo(W - R, yy); ctx.stroke();
+    ctx.textAlign = 'right';
+    ctx.fillText(v.toLocaleString(), L - 8, yy + 4);
+  }
+
+  ctx.save();
+  ctx.setLineDash([5, 4]); ctx.strokeStyle = '#dc2626';
+  ctx.beginPath(); ctx.moveTo(L, y(LIMIT_TDS)); ctx.lineTo(W - R, y(LIMIT_TDS)); ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = '#dc2626';
+  ctx.textAlign = 'left';
+  ctx.fillText('500 ppm limit', L + 4, y(LIMIT_TDS) - 6);
+
+  const line = (key, color) => {
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    history.forEach((r, i) => i ? ctx.lineTo(x(i), y(r[key])) : ctx.moveTo(x(i), y(r[key])));
+    ctx.stroke();
+  };
+  line('tds_in', '#0284c7');
+  line('tds_out', '#0d9488');
+
+  history.forEach((r, i) => {
+    if (r.safe) return;
+    ctx.beginPath();
+    ctx.arc(x(i), y(r.tds_out), 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff'; ctx.fill();
+    ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2; ctx.stroke();
+  });
+  ctx.lineWidth = 1;
+
+  const first = new Date(history[0].ts);
+  const mid = new Date(history[Math.floor(history.length / 2)].ts);
+  const last = new Date(history[history.length - 1].ts);
+  ctx.fillStyle = '#64748b';
+  ctx.textAlign = 'left';   ctx.fillText(first.toLocaleTimeString(), L, H - 12);
+  ctx.textAlign = 'center'; ctx.fillText(mid.toLocaleTimeString(), (L + W - R) / 2, H - 12);
+  ctx.textAlign = 'right';  ctx.fillText(last.toLocaleTimeString(), W - R, H - 12);
+
+  ctx.save();
+  ctx.translate(14, (T + H - B) / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('TDS (ppm)', 0, 0);
+  ctx.restore();
+}
+
+$('csvBtn').onclick = () => {
+  if (!history.length) return;
+  const head = 'ts_iso,ph,tds_in,tds_out,temp_c,turbidity,removal_pct,safe';
+  const rows = history.map(r => [
+    new Date(r.ts).toISOString(), r.ph, r.tds_in, r.tds_out, r.temp_c,
+    r.turbidity ?? '', r.removal.toFixed(2), r.safe ? 1 : 0
+  ].join(','));
+  const blob = new Blob([head + '\n' + rows.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'safisense_readings.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+$('clearBtn').onclick = () => {
+  history = []; lastSafe = null;
+  drawChart();
+  setConn('Cleared.');
+};
+
+$('startBtn').onclick = () => {
+  if (timer) return;
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
+  }
+  tick();
+  timer = setInterval(tick, POLL_MS);
+  $('startBtn').disabled = true;
+  $('stopBtn').disabled = false;
+};
+
+$('stopBtn').onclick = () => {
+  clearInterval(timer); timer = null;
+  $('startBtn').disabled = false;
+  $('stopBtn').disabled = true;
+  setConn('Stopped.');
+};
+
+$('mode').onchange = () => {
+  const live = $('mode').value === 'esp32';
+  $('espUrl').style.display = live ? '' : 'none';
+  $('scenarios').style.display = live ? 'none' : '';
+  history = []; lastSafe = null; drawChart();
+  setConn(live ? 'Live mode — press Start, then join the ESP32 Wi-Fi.' : 'Demo mode — press Start to simulate.');
+};
+
+$('spikeBtn').onclick = () => { sim.tdsEvent = 4; if (timer) tick(); };
+$('phFaultBtn').onclick = () => {
+  sim.phEvent = 4;
+  sim.phSide = Math.random() < 0.5 ? 5.9 : 9.3;
+  if (timer) tick();
+};
+
+$('tgTest').onclick = () => {
+  if (!$('tgToken').value.trim() || !$('tgChat').value.trim()) {
+    setConn('Enter the bot token and chat ID first.', true);
+    return;
+  }
+  tgSend('SafiSense test message ✅');
+};
+
+$('espUrl').value = store.get('safisense_esp_url');
+$('espUrl').onchange = e => store.set('safisense_esp_url', e.target.value.trim());
+$('tgToken').value = store.get('safisense_tg_token');
+$('tgChat').value = store.get('safisense_tg_chat');
+$('tgToken').onchange = e => store.set('safisense_tg_token', e.target.value.trim());
+$('tgChat').onchange = e => store.set('safisense_tg_chat', e.target.value.trim());
+
+$('espUrl').style.display = 'none';
+$('scenarios').style.display = '';
+window.addEventListener('resize', drawChart);
+drawChart();
+</script>
+</body>
+</html>

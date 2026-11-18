@@ -1,0 +1,45 @@
+# ===== CHANGE THIS ONE LINE to your spreadsheet's filename =====
+CSV_FILE = "processed_water_quality_dataset1.csv"
+# ==============================================================
+
+import joblib
+import pandas as pd
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, confusion_matrix
+
+# 1. Read the spreadsheet
+df = pd.read_csv(CSV_FILE)
+print("Rows in file:", len(df))
+print("Columns:", list(df.columns))
+
+# 2. Grab the columns we need and automatically map the text labels to numbers
+X = df[["ph", "tds", "temp"]]
+
+# This creates a new column data internally as 1 for Safe and 0 for Unsafe
+y = df["Label"].apply(lambda x: 1 if str(x).strip().lower() == 'safe' else 0).astype(int)
+
+# 3. Keep 8,000 rows for learning, 1,600 rows for testing
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, train_size=8000, stratify=y, random_state=0
+)
+
+# 4. Build and train the model
+model = Pipeline([
+    ("scale", StandardScaler()),
+    ("svm", SVC(class_weight="balanced", probability=True)),
+])
+model.fit(X_train, y_train)
+
+# 5. See how well it did
+predictions = model.predict(X_test)
+print("\nConfusion matrix (rows = truth, columns = guess):")
+print(confusion_matrix(y_test, predictions))
+print("\nReport:")
+print(classification_report(y_test, predictions, target_names=["unsafe", "safe"]))
+
+# 6. Save the model as one file
+joblib.dump(model, "svm_water_model.joblib")
+print("\nSaved: svm_water_model.joblib")
