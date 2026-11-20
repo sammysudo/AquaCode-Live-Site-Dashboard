@@ -37,7 +37,7 @@ function tgSend(text) {
     body: JSON.stringify({ chat_id: chat, text })
   }).catch(() => {});
 }
-$('tgTest').onclick = () => tgSend('SafiSense test message ✅');
+$('tgTest').onclick = () => tgSend('SafiSense water helper is ready for a check ✅');
 $('tgToken').value = localStorage.getItem('safisense_tg_token') || '';
 $('tgChat').value = localStorage.getItem('safisense_tg_chat') || '';
 $('tgToken').onchange = e => localStorage.setItem('safisense_tg_token', e.target.value.trim());
@@ -50,14 +50,14 @@ async function tick() {
   
   if (mode === 'sim') {
     r = simReading();
-    msg = 'Simulated data (demo mode)';
+    msg = 'Practice mode: pretend water readings';
   } 
   else if (mode === 'server') {
     const base = $('espUrl').value.trim() || 'http://localhost:8000';
     try {
       const res = await fetch(base.replace(/\/+$/, '') + '/api/latest', { cache: 'no-store' });
       if (res.status === 404) {
-        $('conn').textContent = 'Server is up, waiting for first ESP32 reading…';
+        $('conn').textContent = 'The water station is ready and waiting for its first reading…';
         return;
       }
       const d = await res.json();
@@ -71,9 +71,9 @@ async function tick() {
         ml_safe: d.safe,
         ml_probability: d.probability_safe,
       };
-      msg = `Live from server · model says ${d.safe ? "SAFE" : "UNSAFE"}`;
+      msg = `Live water check · our smart helper says ${d.safe ? "GOOD TO USE" : "NEEDS ATTENTION"}`;
     } catch (e) {
-      $('conn').textContent = 'Cannot reach FastAPI — is uvicorn running on port 8000?';
+      $('conn').textContent = 'We cannot reach the water station yet. Ask a grown-up to check that the helper is running.';
       return;
     }
   } 
@@ -81,9 +81,9 @@ async function tick() {
     const url = $('espUrl').value.trim() || 'http://192.168.4.1';
     try {
       r = await espReading(url);
-      msg = `Live from ${url}/data`;
+      msg = `Live check from our water sensor`;
     } catch (e) {
-      $('conn').textContent = `Could not reach ${url}/data — check the ESP32 is in SoftAP mode and you are on its Wi-Fi. (${e.message})`;
+      $('conn').textContent = `We cannot find the water sensor. Ask a grown-up to check its connection. (${e.message})`;
       return;
     }
   }
@@ -93,7 +93,7 @@ async function tick() {
   history.push(r);
   if (history.length > MAX_POINTS) history.shift();
   render(r, msg);
-  if (lastSafe === true && !r.safe) tgSend('⚠️ SafiSense: water UNSAFE — ' + JSON.stringify({ ph: r.ph, tds_out: r.tds_out }));
+  if (lastSafe === true && !r.safe) tgSend('⚠️ SafiSense: this water needs attention — ' + JSON.stringify({ ph: r.ph, tiny_things_remaining: r.tds_out }));
   lastSafe = r.safe;
 }
 
@@ -102,7 +102,7 @@ function render(r, msg) {
   
   // 1. Render the Rule Pill
   const pill = $('statusPill');
-  pill.textContent = r.safe ? 'SAFE ✓' : 'UNSAFE ✗';
+  pill.textContent = r.safe ? 'GOOD TO USE ✓' : 'NEEDS ATTENTION';
   pill.className = 'pill ' + (r.safe ? 'safe' : 'unsafe');
 
   // 2. Render the ML Badge (if it exists)
@@ -115,7 +115,7 @@ function render(r, msg) {
     ml.style.fontSize = "13px";
     ml.style.padding = "4px 10px";
     ml.style.marginLeft = "8px";
-    ml.textContent = `ML: ${r.ml_safe ? "SAFE" : "UNSAFE"}` +
+    ml.textContent = `Smart helper: ${r.ml_safe ? "GOOD" : "CHECK"}` +
       (r.ml_probability != null ? ` (${(r.ml_probability * 100).toFixed(0)}%)` : "");
     $("statusPill").after(ml);
   }
@@ -137,7 +137,7 @@ function drawChart() {
   ctx.clearRect(0, 0, W, H);
   if (history.length < 2) {
     ctx.fillStyle = '#94a3b8'; ctx.font = '14px Inter, sans-serif';
-    ctx.fillText('Waiting for readings…', L + 20, H / 2);
+    ctx.fillText('Waiting for our first water check…', L + 20, H / 2);
     return;
   }
   const vals = history.flatMap(r => [r.tds_in, r.tds_out]);
@@ -155,7 +155,7 @@ function drawChart() {
   ctx.setLineDash([5, 4]); ctx.strokeStyle = '#dc2626';
   ctx.beginPath(); ctx.moveTo(L, y(LIMIT_TDS)); ctx.lineTo(W - R, y(LIMIT_TDS)); ctx.stroke();
   ctx.setLineDash([]);
-  ctx.textAlign = 'left'; ctx.fillText('500 ppm', L + 4, y(LIMIT_TDS) - 5);
+  ctx.textAlign = 'left'; ctx.fillText('Safety line', L + 4, y(LIMIT_TDS) - 5);
 
   const line = (key, color) => {
     ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
@@ -183,7 +183,7 @@ $('csvBtn').onclick = () => {
 };
 
 // --- Controls ---
-$('clearBtn').onclick = () => { history = []; lastSafe = null; drawChart(); $('conn').textContent = 'Cleared.'; };
+$('clearBtn').onclick = () => { history = []; lastSafe = null; drawChart(); $('conn').textContent = 'Our page is clean and ready for a new check.'; };
 $('startBtn').onclick = () => {
   if (timer) return;
   tick();
@@ -193,7 +193,7 @@ $('startBtn').onclick = () => {
 $('stopBtn').onclick = () => {
   clearInterval(timer); timer = null;
   $('startBtn').disabled = false; $('stopBtn').disabled = true;
-  $('conn').textContent = 'Stopped.';
+  $('conn').textContent = 'Checking paused.';
 };
 $('mode').onchange = () => {
   const m = $('mode').value;

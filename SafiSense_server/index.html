@@ -3,63 +3,68 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>SafiSense — Water Quality Dashboard</title>
+<title>SafiSense — My Water Check</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1><span>SafiSense</span> — Water Quality Dashboard</h1>
-    <div id="statusPill" class="pill">—</div>
+    <div>
+      <p class="eyebrow">SafiSense Water Lab</p>
+      <h1>Let’s check the water!</h1>
+    </div>
+    <div id="statusPill" class="pill">Waiting for a check</div>
   </header>
 
   <div class="card">
+    <p class="welcome">Welcome, young water explorers! Choose a way to begin, then press <strong>Start checking</strong>. We’ll watch the water numbers together.</p>
     <div class="row">
-      <label>Data source
+      <label>How should we get readings?
         <select id="mode">
-          <option value="sim">Simulated (demo mode)</option>
-          <option value="esp32">ESP32 (live)</option>
-          <option value="server">Server (live + ML)</option>
+          <option value="sim">Try the practice mode</option>
+          <option value="esp32">Use our live water sensor</option>
+          <option value="server">Use the smart water station</option>
         </select>
       </label>
-      <input id="espUrl" size="22" placeholder="http://192.168.4.1" />
-      <button id="startBtn" class="primary">Start</button>
+      <input id="espUrl" size="22" placeholder="Sensor address" />
+      <button id="startBtn" class="primary">Start checking</button>
       <button id="stopBtn" class="ghost" disabled>Stop</button>
-      <button id="csvBtn" class="ghost">Export CSV</button>
-      <button id="clearBtn" class="ghost">Clear</button>
+      <button id="csvBtn" class="ghost">Save our results</button>
+      <button id="clearBtn" class="ghost">Start over</button>
     </div>
-    <div id="conn" class="muted">Idle. Pick a source and press Start — a reading is taken every 2 s.</div>
+    <div id="conn" class="muted">Ready! Pick a mode and press Start checking. We’ll take a new look every 2 seconds.</div>
   </div>
 
   <div class="tiles">
-    <div class="tile"><div class="k">pH</div><div class="v" id="tPh">—</div><div class="u">safe 6.5 – 8.5</div></div>
-    <div class="tile"><div class="k">TDS in</div><div class="v" id="tTdsIn">—</div><div class="u">ppm · source water</div></div>
-    <div class="tile"><div class="k">TDS out</div><div class="v" id="tTdsOut">—</div><div class="u">ppm · limit 500</div></div>
-    <div class="tile"><div class="k">Temp</div><div class="v" id="tTemp">—</div><div class="u">°C</div></div>
-    <div class="tile"><div class="k">Turbidity</div><div class="v" id="tTurb">—</div><div class="u">NTU</div></div>
-    <div class="tile"><div class="k">Removal</div><div class="v" id="tRem">—</div><div class="u">% TDS removed</div></div>
+    <div class="tile"><div class="k">Water balance</div><div class="v" id="tPh">—</div><div class="u">pH · happy range 6.5 – 8.5</div></div>
+    <div class="tile"><div class="k">Before cleaning</div><div class="v" id="tTdsIn">—</div><div class="u">tiny things in the water</div></div>
+    <div class="tile"><div class="k">After cleaning</div><div class="v" id="tTdsOut">—</div><div class="u">tiny things remaining</div></div>
+    <div class="tile"><div class="k">Water temperature</div><div class="v" id="tTemp">—</div><div class="u">degrees Celsius</div></div>
+    <div class="tile"><div class="k">How clear?</div><div class="v" id="tTurb">—</div><div class="u">cloudiness level</div></div>
+    <div class="tile"><div class="k">Cleaner now</div><div class="v" id="tRem">—</div><div class="u">how much we removed</div></div>
   </div>
 
   <div class="card">
+    <h2 class="chart-title">Our water journey</h2>
     <div class="legend">
-      <span><span class="dot" style="background:#0284c7"></span>TDS in</span>
-      <span><span class="dot" style="background:#0d9488"></span>TDS out</span>
-      <span><span class="dot" style="background:#dc2626"></span>500 ppm limit</span>
+      <span><span class="dot" style="background:#0284c7"></span>Before cleaning</span>
+      <span><span class="dot" style="background:#0d9488"></span>After cleaning</span>
+      <span><span class="dot" style="background:#dc2626"></span>Our safety line</span>
     </div>
     <canvas id="chart" width="900" height="280"></canvas>
   </div>
 
   <details class="card">
-    <summary>Telegram alerts (optional)</summary>
+    <summary>Send a helpful message (grown-up helper tool)</summary>
     <div class="row" style="margin-top:10px">
-      <input id="tgToken" size="30" placeholder="Bot token" />
-      <input id="tgChat" size="14" placeholder="Chat ID" />
-      <button id="tgTest" class="ghost">Send test</button>
+      <input id="tgToken" size="30" placeholder="Message bot secret" />
+      <input id="tgChat" size="14" placeholder="Helper chat ID" />
+      <button id="tgTest" class="ghost">Try a message</button>
     </div>
-    <div class="muted">Needs internet. Sends a message whenever status changes to UNSAFE. The token stays in this browser (localStorage). Works when the file is opened directly; the sandboxed preview may block network calls.</div>
+    <div class="muted">Ask a grown-up before using this. It needs internet and can send a note when the water needs attention. The secret stays in this browser.</div>
   </details>
 
-  <div class="muted">Status rule: SAFE when pH is 6.5–8.5 AND TDS out ≤ 500 ppm. Removal % = (TDS_in − TDS_out) / TDS_in × 100.</div>
+  <div class="learning-note"><strong>What makes us say good to use?</strong> The water is in a happy pH range and has few enough tiny things left after cleaning.</div>
 </div>
 
 <script src="/static/script.js"></script>
