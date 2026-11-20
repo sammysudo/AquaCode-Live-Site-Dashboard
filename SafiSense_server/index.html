@@ -3,69 +3,191 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#eaf7ff" />
 <title>SafiSense — My Water Check</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div>
-      <p class="eyebrow">SafiSense Water Lab</p>
-      <h1>Let’s check the water!</h1>
+<main class="wrap">
+  <header class="masthead">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">💧</div>
+      <div>
+        <p class="eyebrow">SafiSense Water Lab</p>
+        <h1>Let’s check the water!</h1>
+        <p class="tagline">Big questions. Tiny drops. Let’s explore what’s in our water.</p>
+      </div>
     </div>
-    <div id="statusPill" class="pill">Waiting for a check</div>
+    <div class="status-stack">
+      <div id="statusPill" class="pill" role="status" aria-live="polite">Waiting for a check</div>
+      <p class="status-rule">Rule: pH 6.5–8.5 AND TDS after cleaning ≤ 500 ppm</p>
+    </div>
   </header>
 
-  <div class="card">
-    <p class="welcome">Welcome, young water explorers! Choose a way to begin, then press <strong>Start checking</strong>. We’ll watch the water numbers together.</p>
-    <div class="row">
-      <label>How should we get readings?
+  <section class="card welcome-card" aria-labelledby="welcomeTitle">
+    <div class="section-heading">
+      <span class="section-icon sun" aria-hidden="true">✦</span>
+      <div>
+        <p class="eyebrow">Your water adventure starts here</p>
+        <h2 id="welcomeTitle">Ready to investigate?</h2>
+      </div>
+    </div>
+    <p class="welcome">Welcome, young water explorers! Choose a way to begin, then press <strong>Start checking</strong>. We’ll watch the water numbers together and learn what they can tell us.</p>
+    <div class="controls">
+      <label for="mode">How should we get readings?
         <select id="mode">
           <option value="sim">Try the practice mode</option>
           <option value="esp32">Use our live water sensor</option>
           <option value="server">Use the smart water station</option>
         </select>
       </label>
-      <input id="espUrl" size="22" placeholder="Sensor address" />
-      <button id="startBtn" class="primary">Start checking</button>
-      <button id="stopBtn" class="ghost" disabled>Stop</button>
-      <button id="csvBtn" class="ghost">Save our results</button>
-      <button id="clearBtn" class="ghost">Start over</button>
+      <input id="espUrl" size="22" aria-label="Sensor or station address" placeholder="Sensor address" />
+      <div class="button-row">
+        <button id="startBtn" class="primary">Start checking</button>
+        <button id="stopBtn" class="secondary" disabled>Pause</button>
+        <button id="csvBtn" class="secondary">Save our results</button>
+        <button id="clearBtn" class="secondary">Start over</button>
+      </div>
     </div>
-    <div id="conn" class="muted">Ready! Pick a mode and press Start checking. We’ll take a new look every 2 seconds.</div>
-  </div>
+    <div class="connection"><span class="connection-dot" aria-hidden="true"></span><span id="conn" aria-live="polite">Ready! Pick a mode and press Start checking. We’ll take a new look every 2 seconds.</span></div>
+  </section>
 
-  <div class="tiles">
-    <div class="tile"><div class="k">Water balance</div><div class="v" id="tPh">—</div><div class="u">pH · happy range 6.5 – 8.5</div></div>
-    <div class="tile"><div class="k">Before cleaning</div><div class="v" id="tTdsIn">—</div><div class="u">tiny things in the water</div></div>
-    <div class="tile"><div class="k">After cleaning</div><div class="v" id="tTdsOut">—</div><div class="u">tiny things remaining</div></div>
-    <div class="tile"><div class="k">Water temperature</div><div class="v" id="tTemp">—</div><div class="u">degrees Celsius</div></div>
-    <div class="tile"><div class="k">How clear?</div><div class="v" id="tTurb">—</div><div class="u">cloudiness level</div></div>
-    <div class="tile"><div class="k">Cleaner now</div><div class="v" id="tRem">—</div><div class="u">how much we removed</div></div>
-  </div>
-
-  <div class="card">
-    <h2 class="chart-title">Our water journey</h2>
-    <div class="legend">
-      <span><span class="dot" style="background:#0284c7"></span>Before cleaning</span>
-      <span><span class="dot" style="background:#0d9488"></span>After cleaning</span>
-      <span><span class="dot" style="background:#dc2626"></span>Our safety line</span>
+  <section aria-labelledby="readingsTitle">
+    <div class="section-title">
+      <div>
+        <p class="eyebrow">The clues in every drop</p>
+        <h2 id="readingsTitle">Our water readings</h2>
+      </div>
+      <p class="section-hint">A number is a clue—not the whole story.</p>
     </div>
-    <canvas id="chart" width="900" height="280"></canvas>
-  </div>
-
-  <details class="card">
-    <summary>Send a helpful message (grown-up helper tool)</summary>
-    <div class="row" style="margin-top:10px">
-      <input id="tgToken" size="30" placeholder="Message bot secret" />
-      <input id="tgChat" size="14" placeholder="Helper chat ID" />
-      <button id="tgTest" class="ghost">Try a message</button>
+    <div class="tiles">
+      <article class="tile tile-blue">
+        <div class="tile-top"><span class="tile-icon" aria-hidden="true">⚖️</span><span class="metric-label">pH <span class="plain-label">· water balance</span></span></div>
+        <div class="v" id="tPh">—</div>
+        <div class="u">Scale from 0 to 14 · our guide: 6.5–8.5</div>
+        <p class="tile-note">Is the water more acidic or more basic?</p>
+      </article>
+      <article class="tile tile-blue">
+        <div class="tile-top"><span class="tile-icon" aria-hidden="true">🫧</span><span class="metric-label">TDS in <span class="plain-label">· before cleaning</span></span></div>
+        <div class="v" id="tTdsIn">—</div>
+        <div class="u">ppm · dissolved things in the source water</div>
+        <p class="tile-note">TDS means tiny dissolved solids—not tiny germs.</p>
+      </article>
+      <article class="tile tile-teal">
+        <div class="tile-top"><span class="tile-icon" aria-hidden="true">✨</span><span class="metric-label">TDS out <span class="plain-label">· after cleaning</span></span></div>
+        <div class="v" id="tTdsOut">—</div>
+        <div class="u">ppm · dissolved things left after filtering</div>
+        <p class="tile-note">Our simple guide is 500 ppm or less.</p>
+      </article>
+      <article class="tile tile-orange">
+        <div class="tile-top"><span class="tile-icon" aria-hidden="true">🌡️</span><span class="metric-label">Temperature <span class="plain-label">· how warm?</span></span></div>
+        <div class="v" id="tTemp">—</div>
+        <div class="u">°C · degrees Celsius</div>
+        <p class="tile-note">Temperature tells us how warm the sample is.</p>
+      </article>
+      <article class="tile tile-purple">
+        <div class="tile-top"><span class="tile-icon" aria-hidden="true">🔎</span><span class="metric-label">Turbidity <span class="plain-label">· how cloudy?</span></span></div>
+        <div class="v" id="tTurb">—</div>
+        <div class="u">NTU · a measure of cloudiness</div>
+        <p class="tile-note">Cloudier water scatters more light. Clear water can still contain germs.</p>
+      </article>
+      <article class="tile tile-pink">
+        <div class="tile-top"><span class="tile-icon" aria-hidden="true">🧽</span><span class="metric-label">TDS removed <span class="plain-label">· cleaning change</span></span></div>
+        <div class="v" id="tRem">—</div>
+        <div class="u">Percent of measured TDS that went down</div>
+        <p class="tile-note">We compare before and after filtering.</p>
+      </article>
     </div>
-    <div class="muted">Ask a grown-up before using this. It needs internet and can send a note when the water needs attention. The secret stays in this browser.</div>
+  </section>
+
+  <section id="healthAlert" class="alert-card" role="status" aria-live="polite" hidden>
+    <span class="alert-icon" aria-hidden="true">!</span>
+    <div>
+      <h2 id="alertTitle">Let’s take a closer look</h2>
+      <p id="alertText"></p>
+    </div>
+  </section>
+
+  <section class="card chart-card" aria-labelledby="chartTitle">
+    <div class="chart-heading">
+      <div>
+        <p class="eyebrow">Follow the changes</p>
+        <h2 id="chartTitle">Our water journey</h2>
+        <p class="chart-caption">Each dot is one check. See how the TDS changes before and after cleaning.</p>
+      </div>
+      <div class="legend" aria-label="Chart legend">
+        <span><span class="dot dot-blue"></span>Before cleaning</span>
+        <span><span class="dot dot-teal"></span>After cleaning</span>
+        <span><span class="dot dot-red"></span>500 ppm guide</span>
+      </div>
+    </div>
+    <div class="chart-frame"><canvas id="chart" width="900" height="280" role="img" aria-label="Chart of dissolved solids before and after cleaning, with a 500 parts per million guide"></canvas></div>
+    <p class="chart-footnote"><strong>How to read it:</strong> The higher a line goes, the more dissolved solids were measured. The red dashed guide marks 500 ppm for TDS after cleaning.</p>
+  </section>
+
+  <section class="card discover-card" aria-labelledby="discoverTitle">
+    <div class="section-heading">
+      <span class="section-icon book" aria-hidden="true">📖</span>
+      <div>
+        <p class="eyebrow">Curiosity corner</p>
+        <h2 id="discoverTitle">What do these water words mean?</h2>
+      </div>
+    </div>
+    <p class="intro-copy">Every reading is a clue. Tap a topic to uncover what the science is measuring and what it cannot tell us.</p>
+    <div class="learn-grid">
+      <details class="learn-card learn-blue">
+        <summary><span class="learn-term">pH</span><span class="learn-short">Water balance</span></summary>
+        <div class="learn-body">
+          <p>pH is a scale from 0 to 14 that describes how acidic or basic a liquid is. Seven is neutral; lower numbers are more acidic, and higher numbers are more basic.</p>
+          <p class="example"><strong>Imagine:</strong> Lemon juice is acidic. Soapy water is basic. Our dashboard uses 6.5–8.5 as its learning guide.</p>
+        </div>
+      </details>
+      <details class="learn-card learn-teal">
+        <summary><span class="learn-term">TDS &amp; ppm</span><span class="learn-short">Dissolved solids</span></summary>
+        <div class="learn-body">
+          <p>Total dissolved solids (TDS) estimates substances dissolved in water, such as minerals and salts. ppm means “parts per million”—a way of describing a very small amount.</p>
+          <p class="example"><strong>Remember:</strong> TDS is not a germ detector. A low TDS number does not prove that water is safe to drink.</p>
+        </div>
+      </details>
+      <details class="learn-card learn-purple">
+        <summary><span class="learn-term">Turbidity</span><span class="learn-short">Cloudiness</span></summary>
+        <div class="learn-body">
+          <p>Turbidity describes how much tiny suspended material makes water look cloudy. It is often measured in NTU (nephelometric turbidity units).</p>
+          <p class="example"><strong>Look closely:</strong> Clear-looking water can still contain germs or chemicals that eyes cannot see.</p>
+        </div>
+      </details>
+      <details class="learn-card learn-orange">
+        <summary><span class="learn-term">Temperature</span><span class="learn-short">How warm it is</span></summary>
+        <div class="learn-body">
+          <p>Temperature tells us how warm or cool the sample is, in degrees Celsius (°C). It can also affect how some sensors behave.</p>
+          <p class="example"><strong>Try this:</strong> Measure the same water at different temperatures and see whether the other readings change.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <section class="card guide-card" aria-labelledby="guideTitle">
+    <div class="guide-icon" aria-hidden="true">🧭</div>
+    <div>
+      <p class="eyebrow">How the result is decided</p>
+      <h2 id="guideTitle">The SAFE / NOT SAFE rule</h2>
+      <p><strong>SAFE:</strong> pH is 6.5–8.5 <strong>and</strong> TDS after cleaning is 500 ppm or less. If either check is outside its limit, the result is <strong>NOT SAFE</strong>.</p>
+      <p class="important-note"><strong>Important:</strong> These checks do not test for every germ or chemical. A “good” result is not proof that water is safe to drink. Always ask a trusted adult and follow local water-safety guidance.</p>
+    </div>
+  </section>
+
+  <details class="card helper-card">
+    <summary>Would you like to receive water alerts on your phone?</summary>
+    <div class="row helper-controls">
+      <input id="tgToken" size="30" aria-label="Message bot secret" placeholder="Message bot secret" />
+      <input id="tgChat" size="14" aria-label="Helper chat ID" placeholder="Helper chat ID" />
+      <button id="tgTest" class="secondary">Try a message</button>
+    </div>
+    <p class="helper-note">Ask a grown-up before using this. It needs internet and can send a note when the water needs attention. The secret stays in this browser.</p>
   </details>
 
-  <div class="learning-note"><strong>What makes us say good to use?</strong> The water is in a happy pH range and has few enough tiny things left after cleaning.</div>
-</div>
+  <footer class="footer-note">Made for curious minds and cleaner-water questions <span aria-hidden="true">🌈</span></footer>
+</main>
 
 <script src="/static/script.js"></script>
 </body>

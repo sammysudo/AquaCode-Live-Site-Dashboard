@@ -5,6 +5,10 @@ let history = [], timer = null, lastSafe = null;
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const isSafe = r => r.ph >= PH_MIN && r.ph <= PH_MAX && r.tds_out <= LIMIT_TDS;
 const removal = r => r.tds_in > 0 ? (r.tds_in - r.tds_out) / r.tds_in * 100 : 0;
+const finiteNumber = (value, fallback = 0) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
 
 // --- Simulated readings ---
 const sim = { tdsIn: 650, tdsOut: 45, ph: 7.2, temp: 25.5, turb: 1.1 };
@@ -24,8 +28,9 @@ function simReading() {
 async function espReading(url) {
   const res = await fetch(url.replace(/\/$/, '') + '/data', { cache: 'no-store' });
   const d = await res.json();
-  return { ts: d.ts || Date.now(), ph: d.ph, tds_in: d.tds_in, tds_out: d.tds_out,
-           temp_c: d.temp_c, turbidity: d.turbidity ?? null };
+  return { ts: d.ts || Date.now(), ph: finiteNumber(d.ph), tds_in: finiteNumber(d.tds_in),
+           tds_out: finiteNumber(d.tds_out), temp_c: finiteNumber(d.temp_c),
+           turbidity: d.turbidity == null ? null : finiteNumber(d.turbidity, null) };
 }
 
 // --- Telegram ---
@@ -63,15 +68,15 @@ async function tick() {
       const d = await res.json();
       r = {
         ts: d.ts || Date.now(),
-        ph: d.ph,
-        tds_in: d.tds_in,
-        tds_out: d.tds_out,
-        temp_c: d.temp_c,
-        turbidity: d.turbidity ?? null,
+        ph: finiteNumber(d.ph),
+        tds_in: finiteNumber(d.tds_in),
+        tds_out: finiteNumber(d.tds_out),
+        temp_c: finiteNumber(d.temp_c),
+        turbidity: d.turbidity == null ? null : finiteNumber(d.turbidity, null),
         ml_safe: d.safe,
         ml_probability: d.probability_safe,
       };
-      msg = `Live water check · our smart helper says ${d.safe ? "GOOD TO USE" : "NEEDS ATTENTION"}`;
+      msg = `Live water check · model prediction: ${d.safe ? "SAFE class" : "CHECK class"}`;
     } catch (e) {
       $('conn').textContent = 'We cannot reach the water station yet. Ask a grown-up to check that the helper is running.';
       return;
@@ -102,8 +107,20 @@ function render(r, msg) {
   
   // 1. Render the Rule Pill
   const pill = $('statusPill');
-  pill.textContent = r.safe ? 'GOOD TO USE ✓' : 'NEEDS ATTENTION';
+  pill.textContent = r.safe ? 'SAFE ✓' : 'NOT SAFE';
   pill.className = 'pill ' + (r.safe ? 'safe' : 'unsafe');
+
+  // Show the rule result in kid-friendly language without implying a safety certification.
+  const alert = $('healthAlert');
+  const reasons = [];
+  if (r.ph < PH_MIN || r.ph > PH_MAX) reasons.push('The pH is outside our 6.5–8.5 guide.');
+  if (r.tds_out > LIMIT_TDS) reasons.push('TDS after cleaning is above the 500 ppm guide.');
+  alert.hidden = false;
+  alert.classList.toggle('good', reasons.length === 0);
+  $('alertTitle').textContent = reasons.length ? 'NOT SAFE BY THIS CHECK' : 'SAFE BY THIS CHECK';
+  $('alertText').textContent = reasons.length
+    ? `${reasons.join(' ')} Ask a trusted adult to help check what might be happening.`
+    : 'Nice investigating! This check only looks at pH and TDS. It cannot test for every germ or chemical.';
 
   // 2. Render the ML Badge (if it exists)
   const old = document.getElementById("mlBadge");
@@ -115,7 +132,7 @@ function render(r, msg) {
     ml.style.fontSize = "13px";
     ml.style.padding = "4px 10px";
     ml.style.marginLeft = "8px";
-    ml.textContent = `Smart helper: ${r.ml_safe ? "GOOD" : "CHECK"}` +
+    ml.textContent = `Model guess: ${r.ml_safe ? "SAFE class" : "CHECK class"}` +
       (r.ml_probability != null ? ` (${(r.ml_probability * 100).toFixed(0)}%)` : "");
     $("statusPill").after(ml);
   }
@@ -135,14 +152,14 @@ function drawChart() {
   const c = $('chart'), ctx = c.getContext('2d');
   const W = c.width, H = c.height, L = 52, R = 12, T = 14, B = 30;
   ctx.clearRect(0, 0, W, H);
-  if (history.length < 2) {
+  if (!history.length) {
     ctx.fillStyle = '#94a3b8'; ctx.font = '14px Inter, sans-serif';
     ctx.fillText('Waiting for our first water check…', L + 20, H / 2);
     return;
   }
-  const vals = history.flatMap(r => [r.tds_in, r.tds_out]);
+  const vals = history.flatMap(r => [finiteNumber(r.tds_in), finiteNumber(r.tds_out)]);
   const yMax = Math.max(1000, Math.ceil(Math.max(...vals) * 1.1 / 250) * 250);
-  const x = i => L + i / (history.length - 1) * (W - L - R);
+  const x = i => history.length === 1 ? L + (W - L - R) / 2 : L + i / (history.length - 1) * (W - L - R);
   const y = v => T + (1 - v / yMax) * (H - T - B);
 
   ctx.strokeStyle = '#e2e8f0'; ctx.fillStyle = '#64748b'; ctx.font = '11px Inter, sans-serif';
@@ -155,15 +172,30 @@ function drawChart() {
   ctx.setLineDash([5, 4]); ctx.strokeStyle = '#dc2626';
   ctx.beginPath(); ctx.moveTo(L, y(LIMIT_TDS)); ctx.lineTo(W - R, y(LIMIT_TDS)); ctx.stroke();
   ctx.setLineDash([]);
-  ctx.textAlign = 'left'; ctx.fillText('Safety line', L + 4, y(LIMIT_TDS) - 5);
+  ctx.textAlign = 'left'; ctx.fillText('500 ppm guide', L + 4, y(LIMIT_TDS) - 5);
 
   const line = (key, color) => {
     ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
     history.forEach((r, i) => i ? ctx.lineTo(x(i), y(r[key])) : ctx.moveTo(x(i), y(r[key])));
     ctx.stroke(); ctx.lineWidth = 1;
+    history.forEach((r, i) => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x(i), y(r[key]), 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
   };
   line('tds_in', '#0284c7');
   line('tds_out', '#0d9488');
+
+  ctx.save();
+  ctx.translate(14, H / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = '#64748b';
+  ctx.font = '11px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('TDS (ppm)', 0, 0);
+  ctx.restore();
 }
 
 // --- CSV export ---
@@ -183,7 +215,18 @@ $('csvBtn').onclick = () => {
 };
 
 // --- Controls ---
-$('clearBtn').onclick = () => { history = []; lastSafe = null; drawChart(); $('conn').textContent = 'Our page is clean and ready for a new check.'; };
+$('clearBtn').onclick = () => {
+  history = [];
+  lastSafe = null;
+  drawChart();
+  $('healthAlert').hidden = true;
+  $('healthAlert').classList.remove('good');
+  $('statusPill').textContent = 'Waiting for a check';
+  $('statusPill').className = 'pill';
+  const mlBadge = $('mlBadge');
+  if (mlBadge) mlBadge.remove();
+  $('conn').textContent = 'Our page is clean and ready for a new check.';
+};
 $('startBtn').onclick = () => {
   if (timer) return;
   tick();
@@ -206,3 +249,5 @@ $('mode').onchange = () => {
   if (timer) { clearInterval(timer); timer = null; tick(); timer = setInterval(tick, 2000); }
 };
 $('espUrl').style.display = 'none';
+window.addEventListener('resize', drawChart);
+drawChart();
